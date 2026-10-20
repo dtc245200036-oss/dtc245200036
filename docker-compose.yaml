@@ -1,0 +1,193 @@
+services:
+  # ============================================================
+  # 1. Cơ sở dữ liệu MySQL 8.0
+  # ============================================================
+  mysql_db:
+    container_name: mysql_db
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: portfolio_db
+      MYSQL_USER: portfolio_user
+      MYSQL_PASSWORD: portfolio_pass
+    volumes:
+      # Giữ dữ liệu database bền vững qua volume
+      - mysql_data:/var/lib/mysql
+      # Tự động nạp cấu trúc database và dữ liệu mẫu khi khởi tạo container lần đầu
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - app-net
+
+  # ============================================================
+  # 2. Ứng dụng Web PHP 8.1 Apache
+  # ============================================================
+  web_app:
+    container_name: web_app
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql_db
+      DB_USER: portfolio_user
+      DB_PASS: portfolio_pass
+      DB_NAME: portfolio_db
+      DB_PORT: 3306
+    depends_on:
+      - mysql_db
+    networks:
+      - app-net
+
+  # ============================================================
+  # 3. Giao diện quản trị cơ sở dữ liệu phpMyAdmin (Port 8080)
+  # ============================================================
+  phpmyadmin:
+    container_name: phpmyadmin
+    image: phpmyadmin/phpmyadmin:latest
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: mysql_db
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: rootpassword
+    depends_on:
+      - mysql_db
+    networks:
+      - app-net
+
+  # ============================================================
+  # 4. Nginx Reverse Proxy (Port 80)
+  # ============================================================
+  nginx_proxy:
+    container_name: nginx_proxy
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      # Mount cấu hình Reverse Proxy & Security Headers
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web_app
+    networks:
+      - app-net
+
+  # ============================================================
+  # 5. cAdvisor - Thu thập Metrics phần cứng & Containers
+  # ============================================================
+  cadvisor:
+    container_name: cadvisor
+    image: gcr.io/cadvisor/cadvisor:latest
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - app-net
+
+  # ============================================================
+  # 6. Prometheus - Hệ thống lưu trữ và truy vấn Time-Series Metrics
+  # ============================================================
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    depends_on:
+      - cadvisor
+    networks:
+      - app-net
+
+  # ============================================================
+  # 7. Grafana - Giao diện trực quan hóa Dashboard giám sát
+  # ============================================================
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - app-net
+
+  # ============================================================
+  # 8. Loki - Hệ thống thu thập và quản lý log tập trung (Port 3100)
+  # ============================================================
+  loki:
+    container_name: loki
+    image: grafana/loki:2.9.2
+    user: "0:0"
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/tmp/loki
+    networks:
+      - app-net
+
+  # ============================================================
+  # 9. Promtail - Thu thập log Docker container và đẩy về Loki
+  # ============================================================
+  promtail:
+    container_name: promtail
+    image: grafana/promtail:2.9.2
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - app-net
+
+# ============================================================
+# Định nghĩa Mạng nội bộ (Docker Network) và Volume lưu trữ
+# ============================================================
+networks:
+  app-net:
+    name: app-net
+    driver: bridge
+
+volumes:
+  mysql_data:
+    name: mysql_data
+    driver: local
+  prometheus_data:
+    name: prometheus_data
+    driver: local
+  grafana_data:
+    name: grafana_data
+    driver: local
+  loki_data:
+    name: loki_data
+    driver: local
