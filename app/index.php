@@ -18,8 +18,7 @@ $db_connected = false;
 $db_error_message = '';
 $server_info = '';
 
-// Danh sách các dự án tiêu biểu được viết cứng trực tiếp trong file index.php
-// để đảm bảo hiển thị đúng 100% tiếng Việt có dấu, tránh hoàn toàn lỗi font chữ
+// Danh sách các dự án tiêu biểu mặc định (dùng làm fallback an toàn)
 $projects = [
     [
         'id' => 1,
@@ -47,6 +46,17 @@ try {
     } else {
         $db_connected = true;
         $server_info = $conn->server_info;
+
+        // Truy vấn dữ liệu thực tế từ bảng projects trong MySQL
+        $sql = "SELECT id, title, description, created_at FROM projects ORDER BY created_at DESC";
+        $result = $conn->query($sql);
+        if ($result && $result->num_rows > 0) {
+            $db_projects = [];
+            while ($row = $result->fetch_assoc()) {
+                $db_projects[] = $row;
+            }
+            $projects = $db_projects;
+        }
         $conn->close();
     }
 } catch (Throwable $e) {
@@ -60,7 +70,7 @@ try {
     <meta charset="UTF-8">
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portfolio Cá Nhân | Full-Stack Developer & Cloud DevOps</title>
+    <title>Vũ Tiến Thành - Portfolio | Backend Developer</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -623,8 +633,8 @@ try {
     <header class="navbar">
         <div class="container nav-content">
             <a href="#" class="brand">
-                <div class="brand-badge">P</div>
-                <span>DevPortfolio<span class="gradient-text">.io</span></span>
+                <div class="brand-badge">TV</div>
+                <span>Thành Vũ <span class="gradient-text">Portfolio</span></span>
             </a>
             <ul class="nav-links">
                 <li><a href="#projects">Dự án tiêu biểu</a></li>
@@ -648,20 +658,19 @@ try {
                 <span>Hệ thống Docker Compose đang hoạt động mượt mà</span>
             </div>
             <h1 class="hero-title">
-                Xây dựng & Triển khai Ứng dụng <br>
-                <span class="gradient-text">Hiện Đại, Linh Hoạt & An Toàn</span>
+                Xin chào, mình là <br>
+                <span class="gradient-text">Vũ Tiến Thành</span>
             </h1>
             <p class="hero-subtitle">
-                Xin chào! Tôi là Kỹ sư phần mềm chuyên về Full-Stack Web và Tối ưu hóa Hạ tầng Container. 
-                Dưới đây là các dự án tiêu biểu được tải trực tiếp từ cơ sở dữ liệu MySQL qua Reverse Proxy Nginx.
+                Sinh viên ngành Công nghệ Thông tin tại Trường Đại học Công nghệ Thông tin &amp; Truyền thông (ICTU). Chào mừng bạn đến với không gian Portfolio cá nhân — nơi trưng bày các dự án thực tế và giải pháp hệ thống do tôi xây dựng. Hệ thống tích hợp nền tảng quản trị hạ tầng Container hóa (Docker), bảo mật toàn diện qua Nginx Reverse Proxy cùng hệ thống giám sát và quản lý log thời gian thực (Prometheus, Grafana, Loki).
             </p>
             <div class="tech-stack-row">
                 <span class="tech-pill">🐳 Docker Compose</span>
-                <span class="tech-pill">🌐 Nginx Proxy</span>
-                <span class="tech-pill">🐘 PHP 8.1 Apache</span>
-                <span class="tech-pill">🗄️ MySQL 8.0</span>
-                <span class="tech-pill">🔒 Security Hardening</span>
-                <span class="tech-pill">⚡ phpMyAdmin</span>
+                <span class="tech-pill">🌐 Nginx</span>
+                <span class="tech-pill">⚡ Python FastAPI</span>
+                <span class="tech-pill">🗄️ MySQL</span>
+                <span class="tech-pill">📊 Monitoring (Prometheus/Grafana)</span>
+                <span class="tech-pill">🌿 Git</span>
             </div>
         </section>
 
@@ -727,9 +736,9 @@ try {
                             </div>
                             <div class="card-footer">
                                 <div class="card-tags">
+                                    <span class="tag-badge">Backend</span>
+                                    <span class="tag-badge">Docker</span>
                                     <span class="tag-badge">MySQL</span>
-                                    <span class="tag-badge">PHP 8.1</span>
-                                    <span class="tag-badge">Production</span>
                                 </div>
                                 <a href="#details" class="card-btn">
                                     <span>Chi tiết</span>
@@ -797,7 +806,7 @@ try {
                 <a href="#architecture">Kiến trúc</a>
                 <a href="http://localhost:8080" target="_blank">phpMyAdmin</a>
             </div>
-            <p>© <?= date('Y') ?> Portfolio Cá Nhân. Triển khai hoàn toàn bằng Docker Compose & PHP mysqli.</p>
+            <p>© <?= date('Y') ?> Vũ Tiến Thành. Portfolio cá nhân triển khai bằng Docker Compose, Nginx &amp; MySQL.</p>
         </div>
     </footer>
 
